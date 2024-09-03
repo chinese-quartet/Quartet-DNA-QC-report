@@ -94,8 +94,8 @@ python merge_two_family_with_genotype.py -LCL5 ${family_name}.D5.txt -LCL6 ${fam
 
 | Family  | Total_Variants | Mendelian_Concordant_Variants | Mendelian_Concordance_Rate |
 | :---: | :--: | :------: | :------:|
-| EATRISPLUS_UU.INDEL  |  1294054  | 1178598  | 0.910779611979|
-| EATRISPLUS_UU.SNV  |  5034285  | 4868250   | 0.967019149691|
+| EATRISPLUS_UU.INDEL  |  1294054  | 1178598  | 0.911|
+| EATRISPLUS_UU.SNV  |  5034285  | 4868250   | 0.967|
 
 
 ### Generate QC report with dnaseqc
@@ -103,7 +103,7 @@ Reminder: Analysis of the first two steps must be completed before generating th
 ```R
 ## download and install dnaseqc
 library(devtools)
-devtools::install_github("markx945/Dnaseqc/dnaseqc")
+devtools::install_github("chinese-quartet/Quartet-DNA-QC-report/dnaseqc")
 library(dnaseqc)
 
 ## Read the F1 score calculation and Mendelian heritability calculation results
