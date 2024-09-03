@@ -123,8 +123,6 @@ GenerateDNAReport(DNA_result = result,doc_file_path = doc_path,output_path = './
 #### output file
 Quartet_DNA_report.docx
 
-[Quartet_DNA_report.docx](https://github.com/markx945/Dnaseqc/files/15468110/Quartet_DNA_report.docx)
-
 
 
 
