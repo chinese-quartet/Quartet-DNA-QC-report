@@ -42,7 +42,7 @@
 #' 
 
 
-GenerateDNAReport <- function(DNA_result = NULL, doc_file_path = NULL, output_path = NULL) {
+generate_dna_report <- function(DNA_result = NULL, doc_file_path = NULL, output_path = NULL) {
   
   if(is.null(DNA_result) || is.null(doc_file_path)) {
     stop("All arguments (DNA_result, doc_file_path) are required.")
@@ -222,8 +222,6 @@ GenerateDNAReport <- function(DNA_result = NULL, doc_file_path = NULL, output_pa
     body_add_fpar(value = text_1_sup_4,style = "Normal") %>%
     body_add_fpar(value = text_1_sup_5,style = "Normal") %>%
     
-    
-    
     ### 排名散点图
     body_add_par(value = "Performance Grade", style = "heading 2") %>%
     body_add_gg(value = p_rank_scatter_plot,style = "centered") %>%
@@ -278,5 +276,4 @@ GenerateDNAReport <- function(DNA_result = NULL, doc_file_path = NULL, output_pa
     
     ## 输出文件
     print(target = output_file)
-  
 }

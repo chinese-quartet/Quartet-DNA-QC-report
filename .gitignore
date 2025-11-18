@@ -9,6 +9,10 @@
 # User-specific files
 .Ruserdata
 
+# Project files
+*.Rproj
+.Rbuildignore
+
 # Example code in package build process
 *-Ex.R
 
@@ -47,3 +51,5 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+test/

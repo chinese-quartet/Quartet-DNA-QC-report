@@ -100,6 +100,7 @@ python merge_two_family_with_genotype.py -LCL5 ${family_name}.D5.txt -LCL6 ${fam
 
 ### Generate QC report with dnaseqc
 Reminder: Analysis of the first two steps must be completed before generating the DNA QC report.
+
 ```R
 ## download and install dnaseqc
 library(devtools)
@@ -107,22 +108,19 @@ devtools::install_github("chinese-quartet/Quartet-DNA-QC-report/dnaseqc")
 library(dnaseqc)
 
 ## Read the F1 score calculation and Mendelian heritability calculation results
-variant_qc <- system.file("example","variants.calling.qc.txt",package = "dnaseqc")
-mendelian_qc <- system.file("example","EATRISPLUS_UU.summary.txt",package = "dnaseqc")
+variant_qc <- system.file("example", "variants.calling.qc.txt", package = "dnaseqc")
+mendelian_qc <- system.file("example", "EATRISPLUS_UU.summary.txt", package = "dnaseqc")
 
 ## Enter the sequencing type, "WGS" or "WES", to calculate the DNAseq QC metrics.
-result = Dnaseqc(variant_qc_file = variant_qc, mendelian_qc_file = mendelian_qc, data_type = "WGS")
+result = dnaseqc(variant_qc_file = variant_qc, mendelian_qc_file = mendelian_qc, data_type = "WGS")
 
 ## Generate report 
 ### read report template from R packages
-doc_path <- system.file("extdata","Quartet_temp.docx",package = "dnaseqc")
+doc_path <- system.file("extdata", "Quartet_temp.docx", package = "dnaseqc")
 ### generate QC report
-GenerateDNAReport(DNA_result = result,doc_file_path = doc_path,output_path = './DNAseq/' )
+generate_dna_report(DNA_result = result, doc_file_path = doc_path, output_path = './test/' )
 
 ```
+
 #### output file
 Quartet_DNA_report.docx
-
-
-
-
