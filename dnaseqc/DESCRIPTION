@@ -3,7 +3,7 @@ Title: Generate Quality Control Reports For DNA Sequenceing Data
 Version: 1.0.0.0
 Authors@R: c(
     person("Yanming", "Xie", email = "yanming.xie@fudan.edu.cn", role = c("aut", "cre")),
-    person("Luis", "Liu", email = "vangork@live.com", role = "cbt")
+    person("Luis", "Liu", email = "vangork@live.com", role = "ctb"))
 Imports: cowplot, data.table, dplyr, flextable, ggplot2, ggthemes,
         officer, stringr, tidyr
 Description: You provide the DNA sequenceing data hap calculation result and mendelian concordance result,

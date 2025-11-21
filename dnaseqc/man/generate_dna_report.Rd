@@ -5,13 +5,13 @@
 \title{Generate Quartet Genomics report}
 \usage{
 generate_dna_report(
-  DNA_result = NULL,
+  dna_result = NULL,
   doc_file_path = NULL,
   output_path = NULL
 )
 }
 \arguments{
-\item{DNA_result}{list}
+\item{dna_result}{list}
 
 \item{output_path}{character}
 
