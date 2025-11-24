@@ -17,6 +17,7 @@
 #' @importFrom flextable align
 #' @importFrom flextable width
 #' @importFrom flextable bold
+#' @importFrom flextable nrow_part
 #' @importFrom ggplot2 ggplot
 #' @importFrom ggplot2 aes
 #' @importFrom ggplot2 geom_point
@@ -47,7 +48,7 @@ generate_dna_report <- function(dna_result = NULL,
   if (is.null(dna_result) || is.null(doc_file_path)) {
     stop("All arguments (dna_result, doc_file_path) are required.")
   }
-  
+
   if (is.null(output_path)) {
     path <- getwd()
     sub_dir <- "output"
@@ -55,19 +56,19 @@ generate_dna_report <- function(dna_result = NULL,
     output_path <- file.path(path, "output")
   }
   output_file <- file.path(output_path, "Quartet_DNA_Report.docx")
-  
+
   ### 创建Evaluate Metrics 表格
-  
+
   ## all metrics table
   summary_ft <- flextable(dna_result$conclusion)
   summary_ft <- summary_ft %>%
-    color(~ Performance == "Bad", color = "#B80D0D", ~ Performance) %>%
-    color(~ Performance == "Fair", color = "#D97C11", ~ Performance) %>%
-    color(~ Performance == "Good", color = "#70C404", ~ Performance) %>%
-    color(~ Performance == "Great", color = "#0F9115", ~ Performance) %>%
+    color(~ Performance == "Bad", color = "#B80D0D", ~Performance) %>%
+    color(~ Performance == "Fair", color = "#D97C11", ~Performance) %>%
+    color(~ Performance == "Good", color = "#70C404", ~Performance) %>%
+    color(~ Performance == "Great", color = "#0F9115", ~Performance) %>%
     width(width = 1.25) %>%
     align(align = "center", part = "all") %>%
-    bold(i = 7, part = "body") %>%
+    bold(i = nrow_part(., part = "body"), part = "body") %>%
     bold(i = 1, part = "header")
 
   ## vcf table
@@ -77,7 +78,7 @@ generate_dna_report <- function(dna_result = NULL,
     width(j = 1, width = 2) %>%
     align(align = "center", part = "all")
 
-  mendelian_ft <- dna_result$mendelian_table 
+  mendelian_ft <- dna_result$mendelian_table
   if (!is.null(mendelian_ft)) {
     mendelian_ft <- flextable(mendelian_ft)
     mendelian_ft <- mendelian_ft %>%
@@ -173,8 +174,10 @@ generate_dna_report <- function(dna_result = NULL,
   text_1 <- "The submitted data will be graded as Bad, Fair, Good, or Great, depending on how the total score stands against historical data. Total score = (1+0.5^2) x SNV_score x INDEL_score / (0.5^2 x SNV_score + INDEL_score). SNV_score and INDEL_score are obtained by calculating the mean values of Precision, Recall, and MCR, respectively."
   ### Four levels of performance
   text_1_sup_1 <- "Based on the scaled total score, the submitted data will be ranked together with all Quartet historical datasets. The higher the score, the higher the ranking. After this, the performance levels will be assigned based on their ranking ranges."
-  text_1_sup_2 <- fpar(ftext("· Bad: ", fp_text(bold = TRUE)),
-                       ftext("Lowest quintile (0-20th percentile).", fp_text()))
+  text_1_sup_2 <- fpar(
+    ftext("· Bad: ", fp_text(bold = TRUE)),
+    ftext("Lowest quintile (0-20th percentile).", fp_text())
+  )
   text_1_sup_3 <- fpar(
     ftext("· Fair: ", fp_text(bold = TRUE)),
     ftext("Lower middle quartile (21st-50th percentile).", fp_text())
@@ -267,38 +270,41 @@ generate_dna_report <- function(dna_result = NULL,
     body_add_par(value = text_2, style = "Normal") %>%
     ## 分页
     body_add_break() %>%
-    
-    { if (!is.null(mendelian_ft)) {
-      ## SNV 散点图
-      body_add_par(x =., value = "Performance of SNV", style = "heading 2") %>%
-      body_add_gg(dna_result$p_mendelian_f1_snv, style = "centered") %>%
-      body_add_par(value = text_3, style = "Normal") %>%
-      ## 分页
-      body_add_break() %>%
-      ## indel 散点图
-      body_add_par(value = "Performance of Indel", style = "heading 2") %>%
-      body_add_gg(dna_result$p_mendelian_f1_indel, style = "centered") %>%
-      body_add_par(value = text_4, style = "Normal") %>%
-      ## 分页
-      body_add_break()
-    } else .} %>%
-
+    {
+      if (!is.null(mendelian_ft)) {
+        ## SNV 散点图
+        body_add_par(x = ., value = "Performance of SNV", style = "heading 2") %>%
+          body_add_gg(dna_result$p_mendelian_f1_snv, style = "centered") %>%
+          body_add_par(value = text_3, style = "Normal") %>%
+          ## 分页
+          body_add_break() %>%
+          ## indel 散点图
+          body_add_par(value = "Performance of Indel", style = "heading 2") %>%
+          body_add_gg(dna_result$p_mendelian_f1_indel, style = "centered") %>%
+          body_add_par(value = text_4, style = "Normal") %>%
+          ## 分页
+          body_add_break()
+      } else {
+        .
+      }
+    } %>%
     ## vcf qc
     body_add_par(value = "Variant Calling Quality Control", style = "heading 2") %>%
     body_add_par(value = "Details based on reference datasets", style = "heading 3") %>%
     body_add_flextable(vcf_ft) %>%
-
-    { if (!is.null(mendelian_ft)) {
-      body_add_par(x = ., value = text_5, style = "Normal") %>%
-      ## mendelian qc
-      body_add_par(value = "Details based on Quartet genetic built-in truth", style = "heading 3") %>%
-      body_add_flextable(mendelian_ft)
-    } else .} %>%
-
+    {
+      if (!is.null(mendelian_ft)) {
+        body_add_par(x = ., value = text_5, style = "Normal") %>%
+          ## mendelian qc
+          body_add_par(value = "Details based on Quartet genetic built-in truth", style = "heading 3") %>%
+          body_add_flextable(mendelian_ft)
+      } else {
+        .
+      }
+    } %>%
     body_add_par(value = text_6, style = "Normal") %>%
     ## 分页
     body_add_break() %>%
-
     ### 附加信息
     body_add_par(value = "Supplementary Information", style = "heading 2") %>%
     body_add_par(value = "Reference", style = "heading 3") %>%
@@ -312,7 +318,6 @@ generate_dna_report <- function(dna_result = NULL,
     # body_add_par(value = supplementary_info_2_3, style = "Normal") %>%
     body_add_par(value = "Disclaimer", style = "heading 3") %>%
     body_add_par(value = supplementary_info_3, style = "Normal") %>%
-
     ## 输出文件
     print(target = output_file)
 }
