@@ -7,7 +7,8 @@
 generate_dna_report(
   dna_result = NULL,
   doc_file_path = NULL,
-  output_path = NULL
+  output_path = NULL,
+  report_name = NULL
 )
 }
 \arguments{

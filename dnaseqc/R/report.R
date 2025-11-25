@@ -44,7 +44,8 @@
 
 generate_dna_report <- function(dna_result = NULL,
                                 doc_file_path = NULL,
-                                output_path = NULL) {
+                                output_path = NULL,
+                                report_name = NULL) {
   if (is.null(dna_result) || is.null(doc_file_path)) {
     stop("All arguments (dna_result, doc_file_path) are required.")
   }
@@ -55,7 +56,10 @@ generate_dna_report <- function(dna_result = NULL,
     dir.create(file.path(path, sub_dir), showWarnings = FALSE)
     output_path <- file.path(path, "output")
   }
-  output_file <- file.path(output_path, "Quartet_DNA_Report.docx")
+  if (is.null(report_name)) {
+    report_name <- "Quartet_DNA_Report.docx"
+  }
+  output_file <- file.path(output_path, report_name)
 
   ### 创建Evaluate Metrics 表格
 
