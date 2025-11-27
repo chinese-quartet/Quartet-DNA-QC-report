@@ -146,9 +146,15 @@ dnaseqc <- function(variant_qc_file,
   recall_indel <- mean(df_batch %>% dplyr::select(matches("*_indel_recall")) %>% unlist(), na.rm = TRUE)
 
   # 计算总分
-  beta2 <- 0.25
-  precision_beta <- (1 + beta2) * precision_snv * precision_indel / (beta2 * precision_snv + precision_indel)
-  recall_beta <- (1 + beta2) * recall_snv * recall_indel / (beta2 * recall_snv + recall_indel)
+  calc_score <- function(snv, indel) {
+    beta <- 0.5
+    beta2 <- beta * beta
+    result <- (1 + beta2) * snv * indel / (beta2 * snv + indel)
+    return(result)
+  }
+
+  precision_beta <- calc_score(precision_snv, precision_indel)
+  recall_beta <- calc_score(recall_snv, recall_indel)
   total <- (precision_beta + recall_beta) / 2
 
   mendelian_snv <- 0
@@ -156,7 +162,7 @@ dnaseqc <- function(variant_qc_file,
   if (!is.null(mendelian_qc_file)) {
     mendelian_snv <- mean(df_batch %>% dplyr::select(contains("snv_mendelian")) %>% unlist(), na.rm = TRUE)
     mendelian_indel <- mean(df_batch %>% dplyr::select(contains("indel_mendelian")) %>% unlist(), na.rm = TRUE)
-    mendelian_beta <- (1 + beta2) * mendelian_snv * mendelian_indel / (beta2 * mendelian_snv + mendelian_indel)
+    mendelian_beta <- calc_score(mendelian_snv, mendelian_indel)
     total <- (precision_beta + recall_beta + mendelian_beta) / 3
   }
 
@@ -199,12 +205,26 @@ dnaseqc <- function(variant_qc_file,
   quality_metrics_df$mendelian_indel_performance <- NA
   quality_metrics_df$total_performance <- NA
 
+  ## re-calc 'total' for ref_metric_dt
+  if (is.null(mendelian_qc_file)) {
+    ref_metric_dt[, total := (calc_score(precision_snv, precision_indel) + calc_score(recall_snv, recall_indel)) / 2]
+  } else {
+    ref_metric_dt[, total := (calc_score(precision_snv, precision_indel) + calc_score(recall_snv, recall_indel) + calc_score(mendelian_snv, mendelian_indel)) / 3]
+  }
 
-  quantile_results <- data.frame()
+  metrics <- c(
+    "precision_snv",
+    "precision_indel",
+    "recall_snv",
+    "recall_indel",
+    "mendelian_snv",
+    "mendelian_indel",
+    "total"
+  )
+
   ## 从历史数据中获取百分位数值，并进行评分
-  columns_to_process <- names(ref_metric_dt)[!names(ref_metric_dt) %in% c("batch", grep("*_performance", names(ref_metric_dt), value = TRUE))]
-
-  for (col_name in columns_to_process) {
+  quantile_results <- data.frame()
+  for (col_name in metrics) {
     # 对每个列展平列表并转换为数值型
     column_data <- unlist(ref_metric_dt[[col_name]])
     column_data_numeric <- as.numeric(column_data)
@@ -255,16 +275,10 @@ dnaseqc <- function(variant_qc_file,
     }
   }
 
+  ## 整合历史数据与Query数据
+  full_metric_dt <- rbind(ref_metric_dt, quality_metrics_df)
+
   # 为每个指标应用性能等级
-  metrics <- c(
-    "precision_snv",
-    "precision_indel",
-    "recall_snv",
-    "recall_indel",
-    "mendelian_snv",
-    "mendelian_indel",
-    "total"
-  )
   for (metric in metrics) {
     q1 <- quantile_df %>%
       filter(column_name == metric, Quantile == "Q1") %>%
@@ -276,11 +290,10 @@ dnaseqc <- function(variant_qc_file,
       filter(column_name == metric, Quantile == "Q3") %>%
       pull(Value)
 
-    quality_metrics_df[[paste0(metric, "_performance")]] <- mapply(assign_performance, quality_metrics_df[[metric]], q1, q2, q3)
+    for (i in 1:nrow(full_metric_dt)) {
+      full_metric_dt[[paste0(metric, "_performance")]][i] <- mapply(assign_performance, full_metric_dt[[metric]][i], q1, q2, q3)
+    }
   }
-
-  ## 整合历史数据与Query数据
-  Merge_data <- rbind(ref_metric_dt, quality_metrics_df)
 
   ## 获取数据排名
   full_name <- list(
@@ -303,13 +316,13 @@ dnaseqc <- function(variant_qc_file,
   }
 
   # 初始化一个空的数据框用于存储排名结果
-  rank_df <- data.frame(batch = unlist(Merge_data$batch))
+  rank_df <- data.frame(batch = unlist(full_metric_dt$batch))
   # 需要计算排名的列名
   metrics_columns <- names(full_name)
   # 对每个需要计算排名的列进行循环
   for (col_name in metrics_columns) {
     # 展平列表并转换为数值向量
-    numeric_vector <- sapply(Merge_data[[col_name]], function(x) {
+    numeric_vector <- sapply(full_metric_dt[[col_name]], function(x) {
       as.numeric(unlist(x))
     })
     # 计算排名
@@ -322,10 +335,10 @@ dnaseqc <- function(variant_qc_file,
   }
 
   ## scale total score
-  score_raw_ref <- Merge_data[Merge_data$batch != "Queried_Data", "total"]
+  score_raw_ref <- full_metric_dt[full_metric_dt$batch != "Queried_Data", "total"]
   score_raw_ref <- score_raw_ref %>% unlist()
   score_raw_ref <- as.numeric(score_raw_ref)
-  score_raw <- Merge_data$total
+  score_raw <- full_metric_dt$total
   score_raw <- as.numeric(score_raw)
 
   k <- 9 / (max((score_raw_ref) - min(score_raw_ref)))
@@ -335,32 +348,32 @@ dnaseqc <- function(variant_qc_file,
   # Q2_total <- quantile_df %>% filter(column_name == "total", Quantile == "Q2") %>% pull(Value)
   # Q3_total <- quantile_df %>% filter(column_name == "total", Quantile == "Q3") %>% pull(Value)
 
-  Merge_data$total_norm <- score_norm
+  full_metric_dt$total_norm <- score_norm
 
   # Q1_v = round(1 + k * (Q1_total - min(score_raw_ref)), 2)
   # Q2_v = round(1 + k * (Q2_total - min(score_raw_ref)), 2)
   # Q3_v = round(1 + k * (Q3_total - min(score_raw_ref)), 2)
 
-  if (Merge_data[Merge_data$batch == "Queried_Data", "total_norm"] <= 1) {
-    Merge_data[Merge_data$batch == "Queried_Data", "total_norm"] <- 1
-  } else if (Merge_data[Merge_data$batch == "Queried_Data", "total_norm"] >= 10) {
-    Merge_data[Merge_data$batch == "Queried_Data", "total_norm"] <- 10
+  if (full_metric_dt[full_metric_dt$batch == "Queried_Data", "total_norm"] <= 1) {
+    full_metric_dt[full_metric_dt$batch == "Queried_Data", "total_norm"] <- 1
+  } else if (full_metric_dt[full_metric_dt$batch == "Queried_Data", "total_norm"] >= 10) {
+    full_metric_dt[full_metric_dt$batch == "Queried_Data", "total_norm"] <- 10
   }
 
-  # Merge_data
+  # full_metric_dt
   ## 获取评估结果
   # 初始化结果列表
 
   evaluation_metrics <- list()
   for (metric in names(full_name)) {
-    queried_value <- Merge_data[Merge_data$batch == "Queried_Data", ][[metric]]
+    queried_value <- full_metric_dt[full_metric_dt$batch == "Queried_Data", ][[metric]]
     mean_std <- sprintf(
       "%.3f ± %.3f",
       mean(ref_metric_dt[[metric]], na.rm = TRUE),
       sd(ref_metric_dt[[metric]], na.rm = TRUE)
     )
     rank_info <- sprintf("%.0f / %.0f", rank_df[rank_df$batch == "Queried_Data", ][[metric]], nrow(rank_df))
-    performance <- Merge_data[Merge_data$batch == "Queried_Data", ][[paste0(metric, "_performance")]]
+    performance <- full_metric_dt[full_metric_dt$batch == "Queried_Data", ][[paste0(metric, "_performance")]]
 
     # 添加到列表
     evaluation_metrics[[length(evaluation_metrics) + 1]] <- list(
@@ -379,25 +392,25 @@ dnaseqc <- function(variant_qc_file,
 
   evaluation_metrics_df$`Queried Value` <- round(as.numeric(evaluation_metrics_df$`Queried Value`), 3)
 
-  Merge_data <- Merge_data %>%
+  full_metric_dt <- full_metric_dt %>%
     mutate(across(everything(), ~ unlist(.)))
 
   ### 计算F1 score(
-  Merge_data$snv_f1 <- 2 * (unlist(Merge_data$precision_snv) * unlist(Merge_data$recall_snv)) /
-    (unlist(Merge_data$precision_snv) + unlist(Merge_data$recall_snv))
-  Merge_data$indel_f1 <- 2 * (Merge_data$precision_indel * Merge_data$recall_indel) /
-    (Merge_data$precision_indel + Merge_data$recall_indel)
+  full_metric_dt$snv_f1 <- 2 * (unlist(full_metric_dt$precision_snv) * unlist(full_metric_dt$recall_snv)) /
+    (unlist(full_metric_dt$precision_snv) + unlist(full_metric_dt$recall_snv))
+  full_metric_dt$indel_f1 <- 2 * (full_metric_dt$precision_indel * full_metric_dt$recall_indel) /
+    (full_metric_dt$precision_indel + full_metric_dt$recall_indel)
 
   ## 添加绘图标签
-  Merge_data$Type <- "Reference"
-  Merge_data[Merge_data$batch == "Queried_Data", ]$Type <- "Query"
+  full_metric_dt$Type <- "Reference"
+  full_metric_dt[full_metric_dt$batch == "Queried_Data", ]$Type <- "Query"
 
   pt_snv_mendelian_f1 <- NULL
   pt_indel_mendelian_f1 <- NULL
 
   if (!is.null(mendelian_qc_file)) {
     pt_snv_mendelian_f1 <- plot_scatter_box(
-      Merge_data,
+      full_metric_dt,
       var_x = "mendelian_snv",
       var_y = "snv_f1",
       col_g = "Type",
@@ -407,7 +420,7 @@ dnaseqc <- function(variant_qc_file,
     )
 
     pt_indel_mendelian_f1 <- plot_scatter_box(
-      Merge_data,
+      full_metric_dt,
       var_x = "mendelian_indel",
       var_y = "indel_f1",
       col_g = "Type",
@@ -420,7 +433,7 @@ dnaseqc <- function(variant_qc_file,
   return(
     list(
       conclusion = evaluation_metrics_df,
-      rank_table = Merge_data,
+      rank_table = full_metric_dt,
       vcf_table = variant_qc_dt,
       mendelian_table = mendelian_df,
       p_mendelian_f1_snv = pt_snv_mendelian_f1,
