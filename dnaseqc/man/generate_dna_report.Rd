@@ -5,22 +5,21 @@
 \title{Generate Quartet Genomics report}
 \usage{
 generate_dna_report(
-  dna_result = NULL,
-  doc_file_path = NULL,
-  output_path = NULL,
+  qc_result,
+  report_template,
+  report_dir = NULL,
   report_name = NULL
 )
 }
 \arguments{
-\item{dna_result}{list}
+\item{qc_result}{list}
 
-\item{output_path}{character}
+\item{report_template}{character}
 
-\item{temp_doc_path}{character}
-}
-\value{
-word file
+\item{report_dir}{character}
+
+\item{report_name}{character}
 }
 \description{
-Use calculated Met result to generate report
+Use calculated DNA result to generate QC report
 }

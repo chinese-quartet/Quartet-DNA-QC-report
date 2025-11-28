@@ -116,9 +116,9 @@ result = dnaseqc(variant_qc_file = variant_qc, data_type = "WGS", mendelian_qc_f
 
 ## Generate report 
 ### read report template from R packages
-doc_path <- system.file("extdata", "Quartet_temp.docx", package = "dnaseqc")
+template <- system.file("extdata", "quartet_template.docx", package = "dnaseqc")
 ### generate QC report
-generate_dna_report(dna_result = result, doc_file_path = doc_path, output_path = './test/')
+generate_dna_report(qc_result = result, report_template = template)
 ```
 
 #### output file

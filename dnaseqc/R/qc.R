@@ -18,9 +18,6 @@
 #' @importFrom stats quantile
 #'
 #' @export
-#'
-
-
 dnaseqc <- function(variant_qc_file,
                     data_type,
                     mendelian_qc_file = NULL) {

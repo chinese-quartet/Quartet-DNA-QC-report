@@ -1,13 +1,13 @@
 # --------------------------------------------------------------------------- #
-#' @title Generate Quartet Genomics report
+#' Generate Quartet Genomics report
 #'
-#' @description Use calculated Met result to generate report
+#' @description
+#' Use calculated DNA result to generate QC report
 #'
-#' @param dna_result list
-#' @param temp_doc_path character
-#' @param output_path character
-#'
-#' @return word file
+#' @param qc_result list
+#' @param report_template character
+#' @param report_dir character
+#' @param report_name character
 #'
 #' @importFrom dplyr %>%
 #' @importFrom flextable flextable
@@ -40,31 +40,29 @@
 #' @importFrom stats quantile
 #'
 #' @export
-#'
-
-generate_dna_report <- function(dna_result = NULL,
-                                doc_file_path = NULL,
-                                output_path = NULL,
+generate_dna_report <- function(qc_result,
+                                report_template,
+                                report_dir = NULL,
                                 report_name = NULL) {
-  if (is.null(dna_result) || is.null(doc_file_path)) {
-    stop("All arguments (dna_result, doc_file_path) are required.")
+  if (is.null(qc_result) || is.null(report_template)) {
+    stop("All arguments (qc_result, report_template) are required.")
   }
 
-  if (is.null(output_path)) {
+  if (is.null(report_dir)) {
     path <- getwd()
     sub_dir <- "output"
     dir.create(file.path(path, sub_dir), showWarnings = FALSE)
-    output_path <- file.path(path, "output")
+    report_dir <- file.path(path, "output")
   }
   if (is.null(report_name)) {
     report_name <- "Quartet_DNA_Report.docx"
   }
-  output_file <- file.path(output_path, report_name)
+  output_file <- file.path(report_dir, report_name)
 
   ### 创建Evaluate Metrics 表格
 
   ## all metrics table
-  summary_ft <- flextable(dna_result$conclusion)
+  summary_ft <- flextable(qc_result$conclusion)
   summary_ft <- summary_ft %>%
     color(~ Performance == "Bad", color = "#B80D0D", ~Performance) %>%
     color(~ Performance == "Fair", color = "#D97C11", ~Performance) %>%
@@ -76,13 +74,13 @@ generate_dna_report <- function(dna_result = NULL,
     bold(i = 1, part = "header")
 
   ## vcf table
-  vcf_ft <- flextable(dna_result$vcf_table)
+  vcf_ft <- flextable(qc_result$vcf_table)
   vcf_ft <- vcf_ft %>%
     bold(i = 1, part = "header") %>%
     width(j = 1, width = 2) %>%
     align(align = "center", part = "all")
 
-  mendelian_ft <- dna_result$mendelian_table
+  mendelian_ft <- qc_result$mendelian_table
   if (!is.null(mendelian_ft)) {
     mendelian_ft <- flextable(mendelian_ft)
     mendelian_ft <- mendelian_ft %>%
@@ -92,7 +90,7 @@ generate_dna_report <- function(dna_result = NULL,
   }
 
   ### 绘制Total score 历史分数排名散点图
-  historical_rank <- dna_result$rank_table[, c("batch", "total_norm")]
+  historical_rank <- qc_result$rank_table[, c("batch", "total_norm")]
   historical_rank_ref <- historical_rank[historical_rank$batch != "Queried_Data", "total_norm"]
 
   q1 <- quantile(historical_rank_ref, probs = 0.2, na.rm = TRUE)
@@ -231,7 +229,7 @@ generate_dna_report <- function(dna_result = NULL,
   ### Disclaimer
   supplementary_info_3 <- 'This Data Quality Report is provided as an analysis of the specific dataset evaluated and is intended for informational purposes only. While every effort has been made to ensure the accuracy and reliability of the analysis, the information is presented "AS IS" without warranty of any kind, either express or implied. The authors and distributors of this report shall not be held liable for any actions taken in reliance thereon. Users are advised that the findings within this report are not to be used as definitive statements on the quality of any product or process beyond the scope of the dataset assessed. This report is not intended for use in critical applications, commercial decision-making, or for regulatory compliance without professional verification and independent validation. No guarantee, either expressed or implied, is made regarding the use or results of the analysis, including without limitation, the correctness, accuracy, reliability, or applicability of the findings.'
 
-  read_docx(doc_file_path) %>%
+  read_docx(report_template) %>%
     ## 添加报告标题
     body_add_par(value = "Quartet Report for Genomics", style = "heading 1") %>%
     ## 第一部分，Assessment Summary
@@ -278,13 +276,13 @@ generate_dna_report <- function(dna_result = NULL,
       if (!is.null(mendelian_ft)) {
         ## SNV 散点图
         body_add_par(x = ., value = "Performance of SNV", style = "heading 2") %>%
-          body_add_gg(dna_result$p_mendelian_f1_snv, style = "centered") %>%
+          body_add_gg(qc_result$p_mendelian_f1_snv, style = "centered") %>%
           body_add_par(value = text_3, style = "Normal") %>%
           ## 分页
           body_add_break() %>%
           ## indel 散点图
           body_add_par(value = "Performance of Indel", style = "heading 2") %>%
-          body_add_gg(dna_result$p_mendelian_f1_indel, style = "centered") %>%
+          body_add_gg(qc_result$p_mendelian_f1_indel, style = "centered") %>%
           body_add_par(value = text_4, style = "Normal") %>%
           ## 分页
           body_add_break()

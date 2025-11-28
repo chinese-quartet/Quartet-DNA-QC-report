@@ -19,8 +19,6 @@
 #' @importFrom ggthemes theme_few
 #'
 #' @export
-#'
-
 plot_scatter_box <- function(dt_sb,
                              var_x,
                              var_y,
