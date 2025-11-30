@@ -112,7 +112,7 @@ variant_qc <- system.file("example", "variants.calling.qc.txt", package = "dnase
 mendelian_qc <- system.file("example", "EATRISPLUS_UU.summary.txt", package = "dnaseqc")
 
 ## Enter the sequencing type, "WGS" or "WES", to calculate the DNAseq QC metrics.
-result = dnaseqc(variant_qc_file = variant_qc, data_type = "WGS", mendelian_qc_file = mendelian_qc)
+result <- dnaseqc(variant_qc_file = variant_qc, data_type = "WGS", mendelian_qc_file = mendelian_qc)
 
 ## Generate report 
 ### read report template from R packages
