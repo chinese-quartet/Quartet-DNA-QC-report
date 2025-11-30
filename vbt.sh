@@ -40,6 +40,3 @@ cat ${family_vcf} | grep -v '##' | awk '
 		} 
 		{ print }
 ' > ${family_name}.consensus.txt
-
-
-
