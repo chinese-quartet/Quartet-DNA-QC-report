@@ -6,7 +6,7 @@ Authors@R: c(
     person("Luis", "Liu", email = "vangork@live.com", role = "ctb"))
 Description: You provide the DNA sequenceing data hap calculation result and mendelian concordance result,
     "dnaseqc" generates the Quality Control Reports in word format.
-License: `use_mit_license()`
+License: MIT + file LICENSE
 URL: https://github.com/chinese-quartet/Quartet-DNA-QC-report
 BugReports: https://github.com/chinese-quartet/Quartet-DNA-QC-report/issues
 Imports: 
