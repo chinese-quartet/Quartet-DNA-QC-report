@@ -156,6 +156,3 @@ snv_outResult = family + '.SNV' + '\t' + str(snv_family_all) + '\t' + str(snv_fa
 summary_file.write(outcolumn)
 summary_file.write(indel_outResult)
 summary_file.write(snv_outResult)
-
-
-
