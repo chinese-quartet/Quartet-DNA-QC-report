@@ -1,6 +1,6 @@
 Package: dnaseqc
 Title: Generate Quality Control Reports For DNA Sequenceing Data
-Version: 1.0.0.0
+Version: 1.1
 Authors@R: c(
     person("Yaqing", "Liu", email = "yaqing.liu@fudan.edu.cn", role = c("aut", "cre")),
     person("Yanming", "Xie", email = "yanming.xie@fudan.edu.cn", role = c("ctb")),

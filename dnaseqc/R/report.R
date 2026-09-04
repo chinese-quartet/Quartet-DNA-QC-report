@@ -12,12 +12,15 @@
 #' @importFrom dplyr %>%
 #' @importFrom flextable flextable
 #' @importFrom flextable theme_vanilla
+#' @importFrom flextable theme_box
 #' @importFrom flextable color
 #' @importFrom flextable set_caption
 #' @importFrom flextable align
 #' @importFrom flextable width
 #' @importFrom flextable bold
 #' @importFrom flextable nrow_part
+#' @importFrom flextable bg
+#' @importFrom flextable fontsize
 #' @importFrom ggplot2 ggplot
 #' @importFrom ggplot2 aes
 #' @importFrom ggplot2 geom_point
@@ -59,267 +62,175 @@ generate_dna_report <- function(qc_result,
   }
   output_file <- file.path(report_dir, report_name)
 
-  ### 创建Evaluate Metrics 表格
+  # --- 1. 定义中文文本内容 ---
+  
+  # 摘要
+  text_sum_intro <- "本报告基于多项组学关键质量控制指标，总结了 Quartet DNA 参考物质所生成数据的质量情况。质量控制流程从变异检测文件（variant calling file, VCF）开始，分别计算了SNV和INDEL的精确度(Precision）、灵敏度(Recall) 及整体质量判别。"
+  
+  # 定义
+  text_def_title <- "质量控制指标"
+  
+  text_prec_title <- "精确度 (Precision)"
+  text_prec_desc <- "采用 hap.py工具 (https://github.com/Illumina/hap.py) 将测试数据集中的变异与基准变异集进行比较。精确度定义为测试数据集中被判定为真实变异的比例。"
+  
+  text_rec_title <- "灵敏度 (Recall)"
+  text_rec_desc <- "灵敏度定义为所有真实变异中，在测试数据集中被成功检测到的比例。"
+  
+  # 参考文献
+  text_ref_title <- "参考文献"
+  text_ref_1 <- "1. Zheng Y, Liu Y, Yang J, et al. Multi-omics data integration using ratio-based quantitative profiling with Quartet reference materials. Nature Biotechnology, 2024."
+  text_ref_2 <- "2. Ren L, Duan X, Dong L, et al. Quartet DNA reference materials and datasets for comprehensively evaluating germline variant calling performance. Genome Biology, 2023."
+  text_ref_3 <- "3. GB/T 45214-2025《人全基因组高通量测序数据质量评价方法》"
+  text_ref_4 <- "4. 上海临床队列组学检测工作指引（征求意见稿）, 2025/11/26"
+  
+  # 免责声明
+  text_disc_title <- "免责声明"
+  text_disc_content <- "本数据质量报告仅针对所评估的特定数据集提供分析结果，仅供信息参考之用。尽管已尽最大努力确保分析结果的准确性和可靠性，但本报告按“现状（AS IS）”提供，不附带任何形式的明示或暗示担保。报告作者及发布方不对基于本报告内容所采取的任何行动承担责任。本报告中的结论不应被视为对任何产品或流程质量的最终判定，也不应用于关键应用场景、商业决策或法规合规用途，除非经过专业核查和独立验证。对于分析结果的正确性、准确性、可靠性或适用性，不作任何明示或暗示的保证。"
 
-  ## all metrics table
-  summary_ft <- flextable(qc_result$conclusion)
-  summary_ft <- summary_ft %>%
-    color(~ Performance == "Bad", color = "#B80D0D", ~Performance) %>%
-    color(~ Performance == "Fair", color = "#D97C11", ~Performance) %>%
-    color(~ Performance == "Good", color = "#70C404", ~Performance) %>%
-    color(~ Performance == "Great", color = "#0F9115", ~Performance) %>%
-    width(width = 1.25) %>%
-    align(align = "center", part = "all") %>%
-    bold(i = nrow_part(., part = "body"), part = "body") %>%
-    bold(i = 1, part = "header")
-
-  ## vcf table
-  vcf_ft <- flextable(qc_result$vcf_table)
-  vcf_ft <- vcf_ft %>%
-    bold(i = 1, part = "header") %>%
-    width(j = 1, width = 2) %>%
-    align(align = "center", part = "all")
-
-  mendelian_ft <- qc_result$mendelian_table
-  if (!is.null(mendelian_ft)) {
-    mendelian_ft <- flextable(mendelian_ft)
-    mendelian_ft <- mendelian_ft %>%
-      bold(i = 1, part = "header") %>%
-      width(j = 1, width = 2) %>%
-      align(align = "center", part = "all")
+  
+  # --- 2. 创建 VCF 质量控制表格 ---
+  
+  # 获取原始数据 (从 qc_result$vcf_table 中)
+  # 假设 vcf_table 包含列: Sample, SNV, INDEL, SNV precision, INDEL precision, SNV recall, INDEL recall
+  # 注意: qc.R 中已经将 precision/recall 除以 100 转换为 0-1 小数
+  raw_df <- qc_result$vcf_table
+  
+  # 辅助函数: 格式化数值并检查阈值
+  # 如果低于阈值，添加 " ↓"
+  fmt_val <- function(val, threshold) {
+    s <- sprintf("%.3f", val)
+    if (!is.na(val) && val < threshold) {
+      return(paste0(s, " ↓"))
+    }
+    return(s)
   }
+  
+  # 准备数据行
+  data_rows <- list()
+  
+  for (i in 1:nrow(raw_df)) {
+    # 获取数值
+    # 注意列名可能包含空格，需根据实际 qc.R 输出调整，这里使用标准名称
+    v_sp <- raw_df$`SNV precision`[i]
+    v_ip <- raw_df$`INDEL precision`[i]
+    v_sr <- raw_df$`SNV recall`[i]
+    v_ir <- raw_df$`INDEL recall`[i]
+    
+    # 获取计数值 (处理可能的不同列名情况，优先使用 'SNV number')
+    # 添加逗号分隔符 (big.mark)
+    c_snv <- if("SNV number" %in% names(raw_df)) {
+      format(as.numeric(raw_df$`SNV number`[i]), big.mark=",")
+    } else if ("SNV" %in% names(raw_df)) {
+      format(as.numeric(raw_df$SNV[i]), big.mark=",")
+    } else {
+      "-"
+    }
+    
+    c_indel <- if("INDEL number" %in% names(raw_df)) {
+      format(as.numeric(raw_df$`INDEL number`[i]), big.mark=",")
+    } else if ("INDEL" %in% names(raw_df)) {
+      format(as.numeric(raw_df$INDEL[i]), big.mark=",")
+    } else {
+      "-"
+    }
+    
+    # 判断是否全部通过
+    # 标准: SNV P >= 0.99, INDEL P >= 0.90, SNV R >= 0.98, INDEL R >= 0.90
+    is_pass <- (v_sp >= 0.99 && v_ip >= 0.90 && v_sr >= 0.98 && v_ir >= 0.90)
+    overall_q <- ifelse(is_pass, "Yes", "No")
+    
+    # 构建行向量
+    row_vec <- c(
+      raw_df$Sample[i],
+      c_snv,
+      c_indel,
+      fmt_val(v_sp, 0.99),
+      fmt_val(v_ip, 0.90),
+      fmt_val(v_sr, 0.98),
+      fmt_val(v_ir, 0.90),
+      overall_q
+    )
+    data_rows[[i]] <- row_vec
+  }
+  
+  # 构建完整表格数据框
+  # 第一行: 推荐质量标准
+  rec_row <- c("推荐质量标准", "-", "-", "≥0.99", "≥0.90", "≥0.98", "≥0.90", "-")
+  
+  tbl_matrix <- do.call(rbind, data_rows)
+  final_df <- rbind(rec_row, tbl_matrix)
+  
+  # 设置列名
+  final_df <- as.data.frame(final_df, stringsAsFactors = FALSE)
+  colnames(final_df) <- c("样本", "#SNV", "#INDEL", "SNV精确度", "INDEL精确度", "SNV 灵敏度", "INDEL灵敏度", "是否通过")
+  
+  # 生成 Flextable
+  ft <- flextable(final_df) %>%
+    theme_box() %>%
+    align(align = "center", part = "all") %>%
+    # 将整个表格设置为 Times New Roman。
+    flextable::font(part = "all", fontname = "Times New Roman") %>%
+    # --- 修改列宽逻辑 ---
+    # 第1列(样本名)给 2 英寸 (足够长)
+    width(j = 1, width = 1.8) %>% 
+    # 第2-8列(数值)给 0.6 英寸 (紧凑)
+    width(j = 2, width = 0.6) %>%
+    # width(j = 3, width = 0.7) %>%
+    # width(j = 4, width = 0.6) %>%
+    # width(j = 5, width = 0.7) %>%
+    width(j = 3:7, width = 0.7) %>%
+    # 第8列(数值)给 0.5 英寸 (紧凑)
+    width(j = 8, width = 0.8) %>%
+    # ------------------
+  bold(part = "header") %>%
+    bold(i = 1, part = "body") %>% # 加粗第一行推荐标准
+    bg(i = 1, bg = "#EFEFEF", part = "body") %>% # 第一行背景灰
+    # 调整字号，防止表格过宽换行
+    fontsize(part = "all", size = 10) %>%
+    # 动态标红: 是否通过为 No
+    color(j = "是否通过", i = ~ `是否通过` == "No", color = "#B80D0D") %>%
+    # 动态标红: 数值带有 ↓ 符号
+    color(j = "SNV精确度", i = ~ grepl("↓", `SNV精确度`), color = "#B80D0D") %>%
+    color(j = "INDEL精确度", i = ~ grepl("↓", `INDEL精确度`), color = "#B80D0D") %>%
+    color(j = "SNV 灵敏度", i = ~ grepl("↓", `SNV 灵敏度`), color = "#B80D0D") %>%
+    color(j = "INDEL灵敏度", i = ~ grepl("↓", `INDEL灵敏度`), color = "#B80D0D")
 
-  ### 绘制Total score 历史分数排名散点图
-  historical_rank <- qc_result$rank_table[, c("batch", "total_norm")]
-  historical_rank_ref <- historical_rank[historical_rank$batch != "Queried_Data", "total_norm"]
-
-  q1 <- quantile(historical_rank_ref, probs = 0.2, na.rm = TRUE)
-  q2 <- quantile(historical_rank_ref, probs = 0.5, na.rm = TRUE)
-  q3 <- quantile(historical_rank_ref, probs = 0.8, na.rm = TRUE)
-
-  p_rank_scatter_plot <- ggplot(data = historical_rank) +
-    # 添加四个区域
-    # geom_rect(aes(xmin = 1, xmax = q1, ymin = -Inf, ymax = Inf), fill = "#B80D0D", alpha = 0.08) +
-    # geom_rect(aes(xmin = q1, xmax = q2, ymin = -Inf, ymax = Inf), fill = "#D97C11", alpha = 0.08) +
-    # geom_rect(aes(xmin = q2, xmax = q3, ymin = -Inf, ymax = Inf), fill = "#70C404", alpha = 0.08) +
-    # geom_rect(aes(xmin = q3, xmax = 10, ymin = -Inf, ymax = Inf), fill = "#0F9115", alpha = 0.08) +
-    geom_rect(
-      xmin = 1,
-      xmax = q1,
-      ymin = -Inf,
-      ymax = Inf,
-      fill = "#B80D0D",
-      alpha = 0.08
-    ) +
-    geom_rect(
-      xmin = q1,
-      xmax = q2,
-      ymin = -Inf,
-      ymax = Inf,
-      fill = "#D97C11",
-      alpha = 0.08
-    ) +
-    geom_rect(
-      xmin = q2,
-      xmax = q3,
-      ymin = -Inf,
-      ymax = Inf,
-      fill = "#70C404",
-      alpha = 0.08
-    ) +
-    geom_rect(
-      xmin = q3,
-      xmax = 10,
-      ymin = -Inf,
-      ymax = Inf,
-      fill = "#0F9115",
-      alpha = 0.08
-    ) +
-    # 添加基础点图层
-    geom_point(aes(x = total_norm, y = reorder(batch, total_norm))) +
-    # 突出显示 "QUERIED DATA" 对应的点
-    geom_point(
-      data = subset(historical_rank, batch == "Queried_Data"),
-      aes(x = total_norm, y = reorder(batch, total_norm)),
-      color = "orange",
-      size = 3
-    ) +
-    # 自定义x轴刻度
-    scale_x_continuous(breaks = c(
-      1,
-      round(as.numeric(q1), 2),
-      round(as.numeric(q2), 2),
-      round(as.numeric(q3), 2),
-      10
-    )) +
-    theme_minimal() +
-    theme(
-      panel.grid.major = element_blank(),
-      panel.grid.minor = element_blank(),
-      axis.text = element_text(face = "bold"),
-      plot.title = element_text(
-        hjust = 0.5,
-        size = 16,
-        face = "bold"
-      )
-    ) +
-    labs(x = " ", y = " ", title = "Total Score")
-
-
-  #### 设置输出文本
-
-  ###### 第一部分
-  ### Summary
-
-  text_sum_intro <- "This report summarizes the quality of the data generated from Quartet DNA reference materials based on several key quality control (QC) metrics. Each metric is accompanied by its current value, historical average, ranking among all datasets evaluated, and the corresponding performance grade."
-
-  text_1 <- "The submitted data will be graded as Bad, Fair, Good, or Great, depending on how the total score stands against historical data. Total score = (1+0.5^2) x SNV_score x INDEL_score / (0.5^2 x SNV_score + INDEL_score). SNV_score and INDEL_score are obtained by calculating the mean values of Precision, Recall, and MCR, respectively."
-  ### Four levels of performance
-  text_1_sup_1 <- "Based on the scaled total score, the submitted data will be ranked together with all Quartet historical datasets. The higher the score, the higher the ranking. After this, the performance levels will be assigned based on their ranking ranges."
-  text_1_sup_2 <- fpar(
-    ftext("· Bad: ", fp_text(bold = TRUE)),
-    ftext("Lowest quintile (0-20th percentile).", fp_text())
-  )
-  text_1_sup_3 <- fpar(
-    ftext("· Fair: ", fp_text(bold = TRUE)),
-    ftext("Lower middle quartile (21st-50th percentile).", fp_text())
-  )
-  text_1_sup_4 <- fpar(
-    ftext("· Good: ", fp_text(bold = TRUE)),
-    ftext("Upper middle quartile (51st-80th percentile).", fp_text())
-  )
-  text_1_sup_5 <- fpar(
-    ftext("· Great: ", fp_text(bold = TRUE)),
-    ftext("Highest quintile (81st-100th percentile).", fp_text())
-  )
-
-
-  #### 第二部分 Quality control metric
-
-  ### Performance Score
-  text_2 <- "Scores of evaluation metrics for the current batch and all historical batches assessed. For better comparison and presentation, the total score was scaled to the interval [1, 10], with the worst dataset being 1 and the best dataset scoring 10. Please note that the results shown here are scaled values for all batches in each metric. The name of your data is Queried_Data."
-  ### Signal-to-Noise Ratio
-  text_3 <- "The SNV performance of evaluated data compared to the Quartet historical batches is shown in this section. Each data point represents a set of Quartet samples, i.e., one each of D5, D6, F7, and M8."
-  ### Correlation with Reference Datasets
-  text_4 <- "The Indel performance of evaluated data compared to the Quartet historical batches is shown in this section. Each data point represents a set of Quartet samples, i.e., one each of D5, D6, F7, and M8."
-  ###
-  text_5 <- " "
-  ###
-  text_6 <- "Each row represents a set of Quartet samples, i.e. one each of D5, D6, F7 and M8. When multiple sets of technical replicates are measured, the performance of each set will be represented by row."
-
-
-  ### Method
-  supplementary_info_1 <- "The QC pipeline starts from the variant calling file, enabling the calculation of the following three metrics. The total score is an F0.5-measure of the SNV score and the INDEL score, which are the mean values of Precision, Recall, and MCR, respectively."
-  supplementary_info_1_1 <- "Tested call sets were compared with benchmark small variants using hap.py (https://github.com/Illumina/hap.py). Precision is the fraction of called variants in the test dataset that are true."
-  supplementary_info_1_2 <- "Recall is the fraction of true variants are called in the test dataset."
-  supplementary_info_1_3 <- "Mendelian concordance rate (MCR) is the number of variants following Mendelian inheritance laws divided by the total number of variants called among the four Quartet samples. Mendelian concordant variants are the variants shared by the twins (D5 and D6) and following Mendelian inheritance laws with parents (Father: F7 and Mother M8). Mendelian analysis was performed using VBT (https://github.com/sbg/VBT-TrioAnalysis). When calculating Mendelian concordance rate of small variants, variants on large deletions were not included, because VBT takes these variants as Mendelian violations."
-  # supplementary_info_1_4 = "Pearson correlation coefficient reflects the overall reproducibility within replicates. We calculate correlation coefficients between each two replicates within each biological sample, and take the median as the definitive absolute correlation."
-  # supplementary_info_1_5 = "SNR is established to characterize the capability of a platform or lab or batch to differentiate the intrinsic differences among distinct biological sample groups ('signal') from variations in technical replicates of the same sample group ('noise')."
-  # supplementary_info_1_6 = "RC is employed to evaluate the quantitative agreement with the reference dataset on a relative scale. Since protein quantities are reassembled by peptide intensities, the reference dataset is established at ratio-scale quantified peptide level across sample pairs (D5/D6, F7/D6, M8/D6), based on historical datasets. To ensure a robust assessment, we only consider peptides that are shared with reference datasets and whose log2FCs reached statistical significance (using limma R package; FDR adjusted P < 0.05). The RC value is subsequently determined by the Pearson correlation coefficient between the test dataset and the reference dataset."
-
-  ### Reference
-  supplementary_info_ref1 <- "1. Zheng Y, Liu Y, Yang J, et al. Multi-omics data integration using ratio-based quantitative profiling with Quartet reference materials. Nat Biotechnol. Published online September 7, 2023."
-  supplementary_info_ref2 <- "2. Ren L, Duan X, Dong L, et al. Quartet DNA reference materials and datasets for comprehensively evaluating germline variant calling performance. Genome Biol. 2023; 24(1): 270."
-
-  ### Contact us
-  # supplementary_info_2_1 = "Fudan University Pharmacogenomics Research Center"
-  # supplementary_info_2_2 = "Project manager: Quartet Team"
-  # supplementary_info_2_3 = "Email: quartet@fudan.edu.cn"
-
-  ### Disclaimer
-  supplementary_info_3 <- 'This Data Quality Report is provided as an analysis of the specific dataset evaluated and is intended for informational purposes only. While every effort has been made to ensure the accuracy and reliability of the analysis, the information is presented "AS IS" without warranty of any kind, either express or implied. The authors and distributors of this report shall not be held liable for any actions taken in reliance thereon. Users are advised that the findings within this report are not to be used as definitive statements on the quality of any product or process beyond the scope of the dataset assessed. This report is not intended for use in critical applications, commercial decision-making, or for regulatory compliance without professional verification and independent validation. No guarantee, either expressed or implied, is made regarding the use or results of the analysis, including without limitation, the correctness, accuracy, reliability, or applicability of the findings.'
-
+  
+  # --- 3. 生成报告文档 ---
   read_docx(report_template) %>%
-    ## 添加报告标题
-    body_add_par(value = "Quartet Report for Genomics", style = "heading 1") %>%
-    ## 第一部分，Assessment Summary
-    body_add_par(value = "Summary", style = "heading 2") %>%
-    body_add_par(value = " ", style = "Normal") %>%
+    # 标题
+    body_add_par(value = "Quartet基因组质量报告", style = "heading 1") %>%
+    
+    # 摘要
+    body_add_par(value = "摘要", style = "heading 2") %>%
     body_add_par(value = text_sum_intro, style = "Normal") %>%
     body_add_par(value = " ", style = "Normal") %>%
-    body_add_flextable(summary_ft) %>%
-    body_add_break() %>%
-    ### 第二部分 Quality control metric
-    body_add_par(value = "QC Metrics", style = "heading 2") %>%
-    body_add_par(value = supplementary_info_1, style = "Normal") %>%
-    body_add_par(value = "Precision:", style = "heading 3") %>%
-    body_add_par(value = supplementary_info_1_1, style = "Normal") %>%
-    body_add_par(value = "Recall:", style = "heading 3") %>%
-    body_add_par(value = supplementary_info_1_2, style = "Normal") %>%
-    body_add_par(value = "Mendelian Concordance Rate:", style = "heading 3") %>%
-    body_add_par(value = supplementary_info_1_3, style = "Normal") %>%
-    # body_add_par(value = "Absolute correlation:",style = "heading 3") %>%
-    # body_add_par(value = supplementary_info_1_4,style = "Normal") %>%
-    # body_add_par(value = "Signal-to-Noise Ratio (SNR):",style = "heading 3") %>%
-    # body_add_par(value = supplementary_info_1_5,style = "Normal") %>%
-    # body_add_par(value = "Relative Correlation with the Reference Dataset (RC):",style = "heading 3") %>%
-    # body_add_par(value = supplementary_info_1_6,style = "Normal") %>%
-
-    body_add_par(value = "Total Score:", style = "heading 3") %>%
-    body_add_par(value = text_1, style = "Normal") %>%
-    ## 分页
-    # body_add_break()%>%
-
-    body_add_par(value = "Performance Category:", style = "heading 3") %>%
-    body_add_par(value = text_1_sup_1, style = "Normal") %>%
-    body_add_fpar(value = text_1_sup_2, style = "Normal") %>%
-    body_add_fpar(value = text_1_sup_3, style = "Normal") %>%
-    body_add_fpar(value = text_1_sup_4, style = "Normal") %>%
-    body_add_fpar(value = text_1_sup_5, style = "Normal") %>%
-    ### 排名散点图
-    body_add_par(value = "Performance Grade", style = "heading 2") %>%
-    body_add_gg(value = p_rank_scatter_plot, style = "centered") %>%
-    body_add_par(value = text_2, style = "Normal") %>%
-    ## 分页
-    body_add_break() %>%
-    {
-      if (!is.null(mendelian_ft)) {
-        ## SNV 散点图
-        body_add_par(x = ., value = "Performance of SNV", style = "heading 2") %>%
-          body_add_gg(qc_result$p_mendelian_f1_snv, style = "centered") %>%
-          body_add_par(value = text_3, style = "Normal") %>%
-          ## 分页
-          body_add_break() %>%
-          ## indel 散点图
-          body_add_par(value = "Performance of Indel", style = "heading 2") %>%
-          body_add_gg(qc_result$p_mendelian_f1_indel, style = "centered") %>%
-          body_add_par(value = text_4, style = "Normal") %>%
-          ## 分页
-          body_add_break()
-      } else {
-        .
-      }
-    } %>%
-    ## vcf qc
-    body_add_par(value = "Variant Calling Quality Control", style = "heading 2") %>%
-    body_add_par(value = "Details based on reference datasets", style = "heading 3") %>%
-    body_add_flextable(vcf_ft) %>%
-    {
-      if (!is.null(mendelian_ft)) {
-        body_add_par(x = ., value = text_5, style = "Normal") %>%
-          ## mendelian qc
-          body_add_par(value = "Details based on Quartet genetic built-in truth", style = "heading 3") %>%
-          body_add_flextable(mendelian_ft)
-      } else {
-        .
-      }
-    } %>%
-    body_add_par(value = text_6, style = "Normal") %>%
-    ## 分页
-    body_add_break() %>%
-    ### 附加信息
-    body_add_par(value = "Supplementary Information", style = "heading 2") %>%
-    body_add_par(value = "Reference", style = "heading 3") %>%
-    body_add_par(value = supplementary_info_ref1, style = "Normal") %>%
-    body_add_par(value = supplementary_info_ref2, style = "Normal") %>%
-    # body_add_par(value = supplementary_info_ref3, style = "Normal") %>%
-    # body_add_par(value = supplementary_info_ref4, style = "Normal") %>%
-    # body_add_par(value = "Contact us", style = "heading 3") %>%
-    # body_add_par(value = supplementary_info_2_1, style = "Normal") %>%
-    # body_add_par(value = supplementary_info_2_2, style = "Normal") %>%
-    # body_add_par(value = supplementary_info_2_3, style = "Normal") %>%
-    body_add_par(value = "Disclaimer", style = "heading 3") %>%
-    body_add_par(value = supplementary_info_3, style = "Normal") %>%
-    ## 输出文件
+    
+    # 插入表格
+    body_add_flextable(ft) %>%
+    # body_add_break() %>% # 根据需要分页
+    
+    # 定义部分
+    body_add_par(value = text_def_title, style = "heading 2") %>%
+    
+    body_add_par(value = text_prec_title, style = "heading 3") %>%
+    body_add_par(value = text_prec_desc, style = "Normal") %>%
+    
+    body_add_par(value = text_rec_title, style = "heading 3") %>%
+    body_add_par(value = text_rec_desc, style = "Normal") %>%
+    
+    # 参考文献
+    body_add_par(value = text_ref_title, style = "heading 2") %>%
+    body_add_par(value = text_ref_1, style = "Normal") %>%
+    body_add_par(value = text_ref_2, style = "Normal") %>%
+    body_add_par(value = text_ref_3, style = "Normal") %>%
+    body_add_par(value = text_ref_4, style = "Normal") %>%
+    body_add_par(value = " ", style = "Normal") %>%
+    
+    # 免责声明
+    body_add_par(value = text_disc_title, style = "heading 3") %>%
+    body_add_par(value = text_disc_content, style = "Normal") %>%
+    
+    # 输出
     print(target = output_file)
 }

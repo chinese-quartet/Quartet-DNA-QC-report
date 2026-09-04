@@ -1,4 +1,4 @@
-# Dnaseqc
+# DNASEQC
 Guideline for Quartet DNA QC Pipeline
 
 # Quartet DNA Quality Control Evaluation
@@ -104,7 +104,7 @@ Reminder: Analysis of the first two steps must be completed before generating th
 ```R
 ## download and install dnaseqc
 library(devtools)
-devtools::install_github("chinese-quartet/Quartet-DNA-QC-report/dnaseqc")
+devtools::install_github("chinese-quartet/quartet-dna-qc-report/dnaseqc")
 library(dnaseqc)
 
 ## Read the F1 score calculation and Mendelian heritability calculation results
@@ -120,6 +120,3 @@ template <- system.file("extdata", "quartet_template.docx", package = "dnaseqc")
 ### generate QC report
 generate_dna_report(qc_result = result, report_template = template)
 ```
-
-#### output file
-Quartet_DNA_report.docx
